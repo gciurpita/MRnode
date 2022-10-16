@@ -1,5 +1,5 @@
-const char *version   = "Koala WiFi - 221016a";
-const char *name      = "MDWV_RR";
+const char *version   = "Koala WiFi - 221016d";
+const char *name      = "Ohiopyle";
 
 #ifdef ESP32
 #include <WiFi.h>
@@ -47,7 +47,12 @@ void dispOled (
 // connect to wifi
 static void wifiConnect (void)
 {
-    WiFi.setHostname (name);
+    WiFi.mode (WIFI_STA);
+
+    Serial.printf ("default hostname: %s\n", WiFi.hostname().c_str());
+    WiFi.hostname (name);
+    Serial.printf ("new hostname: %s\n", WiFi.hostname().c_str());
+
     WiFi.begin (ssid, pass);
 
     while (WL_CONNECTED != WiFi.status ())  {
@@ -57,7 +62,7 @@ static void wifiConnect (void)
 
    IPAddress ip = WiFi.localIP ();
 
-   Serial.print ("WiFi connected ");
+   Serial.print (" connected ");
    Serial.println (ip);
 }
 
@@ -70,7 +75,7 @@ static void jmriConnect (void)
         printf (" ... JMRI connecting - %s %d\n", host, port);
 
     } while (! wifi.connect(host, port));
-    printf ("JMRI connected - %s %d\n", host, port);
+    printf (" connected JMRI %s %d\n", host, port);
 
 #if 0
     sprintf (s, "N%s", "greg ciurpita");
@@ -150,7 +155,10 @@ void
 setup (void)
 {
     Serial.begin (115200);
-    Serial.println ();
+    delay (1000);
+
+    while (! Serial)
+        ;
 
     Serial.println (version);
 
