@@ -1,4 +1,4 @@
-const char *version   = "Koala WiFi - 221016d";
+const char *version   = "Koala WiFi - 221018a";
 const char *name      = "Ohiopyle";
 
 #ifdef ESP32
@@ -6,6 +6,8 @@ const char *name      = "Ohiopyle";
 #elif defined(ESP8266)
 #include <ESP8266WiFi.h>
 #endif
+
+#include <EEPROM.h>
 
 // -----------------------------------------------------------------------------
 // WiFi and JMRI Server Definitions
@@ -127,16 +129,162 @@ wifiSend (
 }
 
 // -----------------------------------------------------------------------------
-void loop ()
+#define EEPROM_SIZE  100
+
+enum {
+    ID_END      = 0,
+
+    ID_HOSTNAME = 10,
+    ID_SSID     = 11,
+    ID_PASSWORD = 12,
+    ID_MASTER   = 13,
+
+    ID_IGNORE   = 0xFF,
+    ID_NOT_FOUND = -1
+};
+
+struct TLV {
+    byte        id;
+    const char *lable;
+}
+tlvs [] = {
+    { ID_HOSTNAME, "hostname" },
+};
+
+// -------------------------------------
+int
+eepromAddr (
+    byte   type)
 {
-    wifiReceive ();
+    for (int addr = 0; addr < EEPROM_SIZE; )  {
+        byte id = EEPROM.read (addr);
+        if (id == ID_END || id == type)
+            return addr;
+
+        addr += EEPROM.read (++addr)+1;
+    }
+    return ID_NOT_FOUND;
+}
+
+// -------------------------------------
+void
+eepromClear (void)
+{
+    sprintf (s, "%s:", __func__);
+    Serial.print (s);
+
+    for (unsigned n = 0; n < EEPROM_SIZE; n++)
+        EEPROM.write (n, 0);
+}
+ 
+// -------------------------------------
+void
+eepromRead (
+    byte   type,
+    char  *buf,
+    int    bufSize )
+{
+    sprintf (s, "%s:", __func__);
+    Serial.println (s);
+
+    int addr = eepromAddr (type);
+
+    if (ID_NOT_FOUND == addr)  {
+        Serial.println (" eepromRead - NOT_FOUND");
+        return;
+    }
+
+    int len = EEPROM.read (++addr);
+
+    if (len > (bufSize - 1))
+        len = bufSize -1;
+
+    for (int n = 0; n < len; n++)
+        buf [n] = EEPROM.read (++addr);
+    buf [bufSize-1] = '\0';
+}
+
+// -------------------------------------
+void
+eepromScan (void)
+{
+    sprintf (s, "%s:", __func__);
+    Serial.print (s);
+
+    for (unsigned n = 0; n < 32; n++)  {
+        if (! (n % 8))
+            Serial.println ();
+        byte val = EEPROM.read (n);
+        sprintf (s, " %02x", val);
+        Serial.print (s);
+    }
+    Serial.println ();
+}
+ 
+// -------------------------------------
+void
+eepromWrite (
+    byte        type,
+    const char *text )
+{
+    sprintf (s, "%s: %s", __func__, text);
+    Serial.println (s);
+
+    int addr = eepromAddr (ID_END);
+    EEPROM.write (addr++, type);
+
+    byte len = strlen (text) + 1;
+    EEPROM.write (addr++, len);
+
+    for (unsigned n = 0; n < len; n++)
+        EEPROM.write (addr++, text [n]);
+
+    EEPROM.write (addr++, 0);
+    EEPROM.commit ();
+}
+
+// -----------------------------------------------------------------------------
+void pcRead ()
+{
+    static int  val = 0;
+    static bool quote = false;
+    static char str [40];
+    static int  idx = 0;
 
     if (Serial.available ())  {
         char c = Serial.read ();
 
+        if (quote)  {
+            if ('"' == c)  {
+                quote = false;
+                str [idx] = '\0';
+            }
+            else  {
+                str [idx++] = c;
+                if (idx == sizeof(str)-1)  {
+                    str [idx] = '\0';
+                    quote     = false;
+                }
+            }
+            return;
+        }
+
         switch (c)  {
+        case '"':
+            quote = true;
+            idx   = 0;
+            break;
+
+        case '0' ... '9':
+            val = 10*val + c - '0';
+            break;
+
         case 'a':
             wifiSend ("antidisestablishmentarianism");
+            break;
+
+        case 'C':
+            eepromClear ();
             break;
 
         case 'n':
@@ -146,8 +294,42 @@ void loop ()
         case 'o':
             wifiSend ("ok");
             break;
+
+        case 'S':
+            eepromScan ();
+            break;
+
+        case 'R':
+            char buf [40];
+            eepromRead (val, buf, 40);
+            Serial.println (buf);
+            val = 0;
+            break;
+
+        case 'W':
+            eepromWrite (val, str);
+            val = 0;
+            break;
+
+        case '?':
+            Serial.println ("   C   eepromClear");
+            Serial.println ("  #R   eepromRead");
+            Serial.println ("   S   eepromScan");
+            Serial.println ("   W   eepromtWrite");
+            Serial.println ("   ?   help");
+            break;
         }
     }
+}
+
+// -----------------------------------------------------------------------------
+void loop ()
+{
+#ifdef WiFi
+    wifiReceive ();
+#endif
+
+    pcRead ();
 }
 
 // -----------------------------------------------------------------------------
@@ -162,6 +344,10 @@ setup (void)
 
     Serial.println (version);
 
+#ifdef WiFi
     wifiConnect ();
     jmriConnect ();
+#endif
+
+    EEPROM.begin (EEPROM_SIZE);
 }
