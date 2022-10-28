@@ -1,5 +1,5 @@
-const char *version   = "Node WiFi - 221019a";
-const char *name      = "Ohiopyle";
+const char *version   = "Node WiFi - 221028b";
+const char *name      = "Garrett";
 
 #include "eeprom.h"
 #include "signals.h"
@@ -41,14 +41,23 @@ void pcRead ()
 
         case '0' ... '9':
             val = 10*val + c - '0';
-            break;
+            return;
 
         case 'a':
             wifiSend ("antidisestablishmentarianism");
             break;
 
+        case 'c':
+            printf (" pin %d  set\n", val);
+            digitalWrite (val, LOW);
+            break;
+
         case 'C':
             eepromClear ();
+            break;
+
+        case 'i':
+            sigInit ();
             break;
 
         case 'n':
@@ -59,8 +68,18 @@ void pcRead ()
             wifiSend ("ok");
             break;
 
+        case 's':
+            printf (" pin %d  set\n", val);
+            digitalWrite (val, HIGH);
+            break;
+
         case 'S':
             eepromScan ();
+            break;
+
+        case 'r':
+            printf (" pin %d  %d\n", val, digitalRead (val));
+            val = 0;
             break;
 
         case 'R':
@@ -76,13 +95,22 @@ void pcRead ()
             break;
 
         case '?':
+            Serial.println ("   a   send \"antidisestablishmentarianism\"");
+            Serial.println ("  #c   digitalWrite (#, LOW)");
             Serial.println ("   C   eepromClear");
+            Serial.println ("   i   sigInit");
+            Serial.println ("   n   send name");
+            Serial.println ("   o   send \"ok\"");
+            Serial.println ("  #r   digitalRead (#)");
             Serial.println ("  #R   eepromRead");
+            Serial.println ("  #s   digitalWrite (#, HIGH)");
             Serial.println ("   S   eepromScan");
             Serial.println ("   W   eepromtWrite");
             Serial.println ("   ?   help");
             break;
         }
+
+        val = 0;
     }
 }
 
@@ -102,7 +130,7 @@ void loop ()
 void
 setup (void)
 {
-    Serial.begin (115200);
+    Serial.begin (9600);
     delay (1000);
 
     while (! Serial)
@@ -115,6 +143,8 @@ setup (void)
     nodeConnect ();
 #endif
 
+#if 0
     eepromInit ();
+#endif
     sigInit ();
 }
