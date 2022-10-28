@@ -27,9 +27,13 @@ void wifiConnect (void)
 {
     WiFi.mode (WIFI_STA);
 
+#ifdef ESP32
+    WiFi.hostname (name);
+#else
     Serial.printf ("default hostname: %s\n", WiFi.hostname().c_str());
     WiFi.hostname (name);
     Serial.printf ("new hostname: %s\n", WiFi.hostname().c_str());
+#endif
 
     WiFi.begin (ssid, pass);
 
