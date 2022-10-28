@@ -36,40 +36,47 @@ struct Sig {
 Sig sig [] = {
  //    ID  Occ Red Yel Grn Whi
     { 100,  32,  0,  2,  4,  5, HIGH },
-    { 110,  33, 12, 13, 14, 15, LOW  },
+    { 110,  33, 12, 13, 14, 15, LOW, 32  },
 };
 const int Nsig = sizeof(sig) / sizeof (Sig);
 
 enum { Off = LOW, On = HIGH };
 
 // -----------------------------------------------------------------------------
+void sigDisp (void)
+{
+    Sig *p = sig;
+    for (unsigned n = 0; n < Nsig; n++, p++)  {
+        printf (" %2d  %2d %2d %2d %2d\n",
+            p->BlkOccPin, p->RedPin, p->AmberPin, p->GreenPin, p->WhitePin);
+    }
+}
+
+// -------------------------------------
 void sigUpdate (void)
 {
+ // printf ("%s:\n", __func__);
+
     Sig *p = sig;
     for (unsigned n = 0; n < Nsig; n++, p++)  {
 #if 0
         if (HIGH == digitalRead (p->PreOccPin))
             p->state = BlackOut;
         else
-             if (LOW == digitalRead (p->BlkOccPin))
+#endif
+
+        if (LOW == digitalRead (p->BlkOccPin))
             p->state = Stop;
-        else if (LOW == digitalRead (p->NxtOccPin))
+        else if (0 != p->BlkNxt && LOW == digitalRead (p->BlkNxt))
             p->state = Approach;
         else
             p->state = Clear;
 
-#else
-        if (LOW == digitalRead (p->BlkOccPin))
-            p->state = Stop;
-        else
-            p->state = Clear;
-#endif
-
         if (p->stateLst != p->state)  {
             p->stateLst = p->state;
 
-            sprintf (s, " blk %3d, %s", p->blockId, StateStr [p->state]);
-            Serial.println (s);
+            printf (" %s: blk %d, state %d %s\n",
+                __func__, p->blockId, p->state, StateStr [p->state]);
 
             digitalWrite (p->GreenPin, ! p->On);
             digitalWrite (p->RedPin,   ! p->On);
@@ -97,29 +104,33 @@ void sigUpdate (void)
 // -----------------------------------------------------------------------------
 void sigInit (void)
 {
+    printf ("%s:\n", __func__);
+
     Sig *p = sig;
     for (unsigned n = 0; n < Nsig; n++, p++)  {
+        printf (" %s: blk %d\n", __func__, p->blockId);
+
         pinMode (p->RedPin,   OUTPUT);
-        digitalWrite (p->RedPin, On);
+        digitalWrite (p->RedPin, p->On);
         delay (500);
-        digitalWrite (p->RedPin, Off);
+        digitalWrite (p->RedPin, ! p->On);
 
         if (p->AmberPin)  {
             pinMode (p->AmberPin, OUTPUT);
-            digitalWrite (p->AmberPin, On);
+            digitalWrite (p->AmberPin, p->On);
             delay (500);
-            digitalWrite (p->AmberPin, Off);
+            digitalWrite (p->AmberPin, ! p->On);
         }
 
         pinMode (p->GreenPin, OUTPUT);
-        digitalWrite (p->GreenPin, On);
+        digitalWrite (p->GreenPin, p->On);
         delay (500);
-        digitalWrite (p->GreenPin, Off);
+        digitalWrite (p->GreenPin, ! p->On);
 
         pinMode (p->WhitePin, OUTPUT);
-        digitalWrite (p->WhitePin, On);
+        digitalWrite (p->WhitePin, p->On);
         delay (500);
-        digitalWrite (p->WhitePin, Off);
+        digitalWrite (p->WhitePin, ! p->On);
 
 
         pinMode (p->BlkOccPin, INPUT_PULLUP);
