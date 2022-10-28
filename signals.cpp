@@ -74,6 +74,7 @@ void sigUpdate (void)
 
         if (p->stateLst != p->state)  {
             p->stateLst = p->state;
+            delay (50);
 
             printf (" %s: blk %d, state %d %s\n",
                 __func__, p->blockId, p->state, StateStr [p->state]);

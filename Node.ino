@@ -1,9 +1,11 @@
-const char *version   = "Node WiFi - 221028b";
+const char *version   = "Node WiFi - 221028c";
 const char *name      = "Garrett";
 
 #include "eeprom.h"
 #include "signals.h"
 #include "wifi.h"
+
+const byte PinsLed1 [] = { 16, 17, 18 };    // red, green, blue
 
 char s  [80];
 
@@ -60,12 +62,20 @@ void pcRead ()
             sigInit ();
             break;
 
+        case 'I':
+            pinMode (val, INPUT_PULLUP);
+            break;
+
         case 'n':
             wifiSend (name);
             break;
 
         case 'o':
             wifiSend ("ok");
+            break;
+
+        case 'O':
+            pinMode (val, OUTPUT);
             break;
 
         case 's':
@@ -99,8 +109,10 @@ void pcRead ()
             Serial.println ("  #c   digitalWrite (#, LOW)");
             Serial.println ("   C   eepromClear");
             Serial.println ("   i   sigInit");
+            Serial.println ("  #I   pinMode (#, INPUT_PULLUP)");
             Serial.println ("   n   send name");
             Serial.println ("   o   send \"ok\"");
+            Serial.println ("  #O   pinMode (#, OUTPUT)");
             Serial.println ("  #r   digitalRead (#)");
             Serial.println ("  #R   eepromRead");
             Serial.println ("  #s   digitalWrite (#, HIGH)");
@@ -131,7 +143,11 @@ void
 setup (void)
 {
     Serial.begin (9600);
-    delay (1000);
+
+    for (unsigned n = 0; n < sizeof(PinsLed1); n++)  {
+        digitalWrite (PinsLed1 [n], HIGH);
+        pinMode      (PinsLed1 [n], OUTPUT);
+    }
 
     while (! Serial)
         ;
