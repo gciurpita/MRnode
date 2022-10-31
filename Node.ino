@@ -1,13 +1,64 @@
-const char *version   = "Node WiFi - 221028c";
+const char *version   = "Node WiFi - 221031b";
 const char *name      = "Garrett";
 
 #include "eeprom.h"
 #include "signals.h"
 #include "wifi.h"
 
-const byte PinsLed1 [] = { 16, 17, 18 };    // red, green, blue
+unsigned long msec;
 
 char s  [80];
+
+// -----------------------------------------------------------------------------
+enum { LedRed, LedGreen, LedBlue };
+const byte PinsLed1 [] = { 16, 17, 18 };    // red, green, blue
+
+enum { LedOff = HIGH, LedOn = LOW };
+
+int  error;
+int  errorState;
+unsigned long msecLst;
+unsigned long msecPeriod;
+
+const unsigned long ErrPeriodOnOff = 500;
+const unsigned long ErrPeriodPause = 2500;
+const unsigned long ErrPeriodNoErr = 1000;
+
+// -------------------------------------
+void errorInit (void) {
+    for (unsigned n = 0; n < sizeof(PinsLed1); n++)  {
+        digitalWrite (PinsLed1 [n], LedOff);
+        pinMode      (PinsLed1 [n], OUTPUT);
+    }
+}
+
+// -------------------------------------
+void errorMon ()
+{
+    if ( (msec - msecLst) >= msecPeriod)  {
+        msecLst    = msec;
+
+        if (! error)  {     // toggle green LED
+            digitalWrite ( PinsLed1 [LedRed], LedOff);
+            digitalWrite ( PinsLed1 [LedGreen],
+                            !digitalRead ( PinsLed1 [LedGreen]));
+
+            msecPeriod = ErrPeriodNoErr;
+            errorState = 0;
+        }
+        else  {             // flash red LED
+            if (--errorState == 0)
+                msecPeriod = ErrPeriodPause;
+            else if (errorState < 0)  {
+                errorState = 2*error;
+                msecPeriod = ErrPeriodOnOff;
+            }
+
+            digitalWrite ( PinsLed1 [LedGreen], LedOff);
+            digitalWrite ( PinsLed1 [LedRed], ! (errorState % 2));
+        }
+    }
+}
 
 // -----------------------------------------------------------------------------
 void pcRead ()
@@ -104,21 +155,25 @@ void pcRead ()
             val = 0;
             break;
 
+        case 'Y':
+            wifiReset ();
+            break;
+
         case '?':
-            Serial.println ("   a   send \"antidisestablishmentarianism\"");
-            Serial.println ("  #c   digitalWrite (#, LOW)");
-            Serial.println ("   C   eepromClear");
-            Serial.println ("   i   sigInit");
-            Serial.println ("  #I   pinMode (#, INPUT_PULLUP)");
-            Serial.println ("   n   send name");
-            Serial.println ("   o   send \"ok\"");
-            Serial.println ("  #O   pinMode (#, OUTPUT)");
-            Serial.println ("  #r   digitalRead (#)");
-            Serial.println ("  #R   eepromRead");
-            Serial.println ("  #s   digitalWrite (#, HIGH)");
-            Serial.println ("   S   eepromScan");
-            Serial.println ("   W   eepromtWrite");
-            Serial.println ("   ?   help");
+            printf ("   a   send \"antidisestablishmentarianism\"\n");
+            printf ("  #c   digitalWrite (#, LOW)\n");
+            printf ("   C   eepromClear\n");
+            printf ("   i   sigInit\n");
+            printf ("  #I   pinMode (#, INPUT_PULLUP)\n");
+            printf ("   n   send name\n");
+            printf ("   o   send \"ok\"\n");
+            printf ("  #O   pinMode (#, OUTPUT)\n");
+            printf ("  #r   digitalRead (#)\n");
+            printf ("  #R   eepromRead\n");
+            printf ("  #s   digitalWrite (#, HIGH)\n");
+            printf ("   S   eepromScan\n");
+            printf ("   W   eepromtWrite\n");
+            printf ("   ?   help\n");
             break;
         }
 
@@ -129,13 +184,16 @@ void pcRead ()
 // -----------------------------------------------------------------------------
 void loop ()
 {
-#define WiFi
-#ifdef WiFi
-    wifiReceive ();
+    msec = millis ();
+
+#if 1
+    wifiMonitor ();
 #endif
 
     sigUpdate ();
     pcRead ();
+
+    errorMon ();
 }
 
 // -----------------------------------------------------------------------------
@@ -144,23 +202,14 @@ setup (void)
 {
     Serial.begin (9600);
 
-    for (unsigned n = 0; n < sizeof(PinsLed1); n++)  {
-        digitalWrite (PinsLed1 [n], HIGH);
-        pinMode      (PinsLed1 [n], OUTPUT);
-    }
-
     while (! Serial)
         ;
 
     Serial.println (version);
 
-#ifdef WiFi
-    wifiConnect ();
-    nodeConnect ();
-#endif
-
-#if 0
+#if 1
     eepromInit ();
 #endif
     sigInit ();
+    errorInit ();
 }
