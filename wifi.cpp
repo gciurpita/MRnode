@@ -5,6 +5,7 @@
 #include <ESP8266WiFi.h>
 #endif
 
+#include "eeprom.h"
 #include "node.h"
 #include "wifi.h"
 
@@ -12,40 +13,54 @@
 // WiFi and JMRI Server Definitions
 WiFiClient          wifi;
 
+#if 0
 const char *ssid  = "wally";
 const char *pass  = "Pan0rama";
 
-
 const char *host  = "192.168.0.41";
+#else
+const unsigned STR_SIZE = 40;
+
+char host [STR_SIZE];
+char ssid [STR_SIZE];
+char pass [STR_SIZE];
+#endif
+
 int         port  = 4445;
 
 unsigned int debug = 0;
 
 // ---------------------------------------------------------
 // connect to wifi
-void wifiConnect (void)
+void wifiInit (void)
 {
     WiFi.mode (WIFI_STA);
 
 #ifdef ESP32
     WiFi.hostname (name);
 #else
-    Serial.printf ("default hostname: %s\n", WiFi.hostname().c_str());
+    printf ("default hostname: %s\n", WiFi.hostname().c_str());
     WiFi.hostname (name);
-    Serial.printf ("new hostname: %s\n", WiFi.hostname().c_str());
+    printf ("new hostname: %s\n", WiFi.hostname().c_str());
 #endif
 
     WiFi.begin (ssid, pass);
+}
 
-    while (WL_CONNECTED != WiFi.status ())  {
-        printf (" ... WiFi connecting - %s %s\n", ssid, pass);
-        delay (1000);
+// -------------------------------------
+bool
+wifiCheck (void)
+{
+    if (WL_CONNECTED != WiFi.status ())  {
+        return false;
    }
 
    IPAddress ip = WiFi.localIP ();
 
    Serial.print (" connected ");
    Serial.println (ip);
+
+   return true;
 }
 
 // -------------------------------------------------------------------
@@ -91,8 +106,7 @@ wifiSend (
     const char*  s )
 {
     if (dbgWifi)  {
-        Serial.print ("wifiSend: ");
-        Serial.println (s);
+        printf ("wifiSend: %s\n", s);
     }
 
 #if 0
@@ -107,3 +121,79 @@ wifiSend (
 #endif
 }
 
+// ---------------------------------------------------------
+enum { ST_GET_CREDENTIALS, ST_AP, ST_MASTER, ST_NODES, ST_ERROR };
+
+const char *wifiStStr [] = {
+    "ST_GET_CREDENTIALS",
+    "ST_AP",
+    "ST_MASTER",
+    "ST_NODES",
+    "ST_ERROR"
+};
+
+int state = ST_GET_CREDENTIALS;
+int stateLst;
+
+// -------------------------------------
+void
+wifiGetCredentials (void)
+{
+    if (! eepromRead (ID_HOSTNAME, host, sizeof(host)))  {
+        printf ("%s: no hostname\n", __func__);
+        state = ST_ERROR;
+        error = ERR_NO_HOST;
+    }
+
+    if (! eepromRead (ID_SSID, ssid, sizeof(host)))  {
+        printf ("%s: no ssid\n", __func__);
+        state = ST_ERROR;
+        error = ERR_NO_SSID;
+    }
+
+    if (! eepromRead (ID_PASSWORD, pass, sizeof(host))) {
+        printf ("%s: no password\n", __func__);
+        state = ST_ERROR;
+        error = ERR_NO_PASS;
+    }
+}
+
+// -------------------------------------
+void
+wifiReset (void)
+{
+    state = ST_GET_CREDENTIALS;
+}
+
+// -------------------------------------
+void
+wifiMonitor (void)
+{
+    if (stateLst != state)
+        printf ("%s: %d %s\n", __func__, state, wifiStStr [state]);
+    stateLst = state;
+
+    switch (state)  {
+    case ST_GET_CREDENTIALS:
+        wifiGetCredentials ();
+
+        if (ST_ERROR != state)  {
+            printf ("%s: credentials acquired\n", __func__);
+            wifiInit ();
+            state = ST_AP;
+        }
+        break;
+
+    case ST_AP:
+        if (wifiCheck ())
+            state = ST_MASTER;
+        break;
+
+    case ST_MASTER:
+        break;
+
+    case ST_ERROR:
+    default:
+        break;
+    }
+}
