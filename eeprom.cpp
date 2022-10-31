@@ -14,6 +14,9 @@ struct TLV {
 }
 tlvs [] = {
     { ID_HOSTNAME, "hostname" },
+    { ID_SSID,     "ssid" },
+    { ID_PASSWORD, "password" },
+    { ID_MASTER,   "master" },
 };
 
 // -------------------------------------
@@ -23,6 +26,8 @@ eepromAddr (
 {
     for (int addr = 0; addr < EEPROM_SIZE; )  {
         byte id = EEPROM.read (addr);
+        printf (" %s: 0x%02x\n", __func__, id);
+
         if (id == ID_END || id == type)
             return addr;
 
@@ -35,11 +40,9 @@ eepromAddr (
 void
 eepromClear (void)
 {
-    sprintf (s, "%s:", __func__);
-    Serial.print (s);
+    printf ("%s:\n", __func__);
 
-    for (unsigned n = 0; n < EEPROM_SIZE; n++)
-        EEPROM.write (n, 0);
+    EEPROM.write (0, ID_END);
 }
  
 // -------------------------------------
@@ -50,20 +53,19 @@ eepromInit (void)
 }
  
 // -------------------------------------
-void
+bool
 eepromRead (
     byte   type,
     char  *buf,
     int    bufSize )
 {
-    sprintf (s, "%s:", __func__);
-    Serial.println (s);
+    printf ("%s:\n", __func__);
 
     int addr = eepromAddr (type);
 
     if (ID_NOT_FOUND == addr)  {
-        Serial.println (" eepromRead - NOT_FOUND");
-        return;
+        printf (" %s: %d NOT_FOUND\n", __func__, type);
+        return false;
     }
 
     int len = EEPROM.read (++addr);
@@ -74,23 +76,24 @@ eepromRead (
     for (int n = 0; n < len; n++)
         buf [n] = EEPROM.read (++addr);
     buf [bufSize-1] = '\0';
+
+    printf (" %s: %d %s\n", __func__, type, buf);
+    return true;
 }
 
 // -------------------------------------
 void
 eepromScan (void)
 {
-    sprintf (s, "%s:", __func__);
-    Serial.print (s);
+    printf ("%s:", __func__);
 
     for (unsigned n = 0; n < 32; n++)  {
         if (! (n % 8))
-            Serial.println ();
+            printf ("\n    ");
         byte val = EEPROM.read (n);
-        sprintf (s, " %02x", val);
-        Serial.print (s);
+        printf (" %02x", val);
     }
-    Serial.println ();
+    printf ("\n");
 }
  
 // -------------------------------------
@@ -99,10 +102,16 @@ eepromWrite (
     byte        type,
     const char *text )
 {
-    sprintf (s, "%s: %s", __func__, text);
-    Serial.println (s);
+    printf ("%s: %d %s\n", __func__, type, text);
 
     int addr = eepromAddr (ID_END);
+    if (ID_NOT_FOUND == addr)  {
+        printf (" %s: not found - eeprom full\n", __func__);
+        return;
+    }
+
+    printf (" %s: addr 0x%02x\n", __func__, addr);
+
     EEPROM.write (addr++, type);
 
     byte len = strlen (text) + 1;
@@ -111,7 +120,7 @@ eepromWrite (
     for (unsigned n = 0; n < len; n++)
         EEPROM.write (addr++, text [n]);
 
-    EEPROM.write (addr++, 0);
+    EEPROM.write (addr++, ID_END);
     EEPROM.commit ();
 }
 
